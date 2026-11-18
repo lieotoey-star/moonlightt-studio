@@ -1,0 +1,3 @@
+import './globals.css';import Link from 'next/link';
+export const metadata={title:'MOONLIGHT STUDIO | หนังสั้นและซีรีส์',description:'โลกของหนังสั้นและซีรีส์จาก MOONLIGHT STUDIO'};
+export default function Layout({children}:{children:React.ReactNode}){return <html lang="th"><body><header className="top"><Link href="/" className="brand">☾ MOONLIGHT <span>STUDIO</span></Link><nav><Link href="/">หน้าแรก</Link><Link href="/movies">หนังสั้น</Link><Link href="/series">ซีรีส์</Link><Link href="/profile">โปรไฟล์</Link><Link href="/admin">จัดการหนัง</Link></nav><Link href="/login" className="pill">เข้าสู่ระบบ</Link></header>{children}<footer>© {new Date().getFullYear()} MOONLIGHT STUDIO · Stories under the moonlight</footer></body></html>}

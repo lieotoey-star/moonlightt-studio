@@ -1,0 +1,2 @@
+import Link from 'next/link';import type {Film} from '../lib/supabase';
+export default function FilmGrid({films}:{films:Film[]}){if(!films.length)return <p className="muted">ยังไม่มีผลงานเผยแพร่ในหมวดนี้</p>;return <div className="grid">{films.map(f=><Link href={'/watch/'+f.id} className="card" key={f.id}><div className="poster">{f.poster_url?<img src={f.poster_url} alt={f.title}/>:<span>☾</span>}</div><div className="card-body"><h3>{f.title}</h3><span className="muted">{f.kind==='series'?'ซีรีส์':'หนังสั้น'} · {f.genre||'ทั่วไป'}</span></div></Link>)}</div>}

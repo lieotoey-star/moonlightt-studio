@@ -1,0 +1,34 @@
+-- Run in Supabase SQL Editor. Do not expose service-role keys in the browser.
+create extension if not exists pgcrypto;
+create table if not exists public.admins(user_id uuid primary key references auth.users(id) on delete cascade);
+create table if not exists public.films(id uuid primary key default gen_random_uuid(),title text not null,description text,kind text not null check(kind in ('movie','series')),genre text,poster_url text,video_url text,published boolean not null default false,series_id uuid references public.films(id) on delete cascade,episode_number integer check(episode_number>0),created_at timestamptz not null default now());
+create table if not exists public.favorites(user_id uuid not null references auth.users(id) on delete cascade,film_id uuid not null references public.films(id) on delete cascade,primary key(user_id,film_id));
+create table if not exists public.comments(id uuid primary key default gen_random_uuid(),film_id uuid not null references public.films(id) on delete cascade,user_id uuid not null references auth.users(id) on delete cascade,body text not null check(char_length(body) between 1 and 1000),created_at timestamptz not null default now());
+create index if not exists films_series_idx on public.films(series_id,episode_number);
+create index if not exists comments_film_idx on public.comments(film_id,created_at desc);
+create or replace function public.is_admin() returns boolean language sql stable security definer set search_path = '' as $$select exists(select 1 from public.admins where user_id=(select auth.uid()))$$;
+revoke all on function public.is_admin() from public;
+grant execute on function public.is_admin() to authenticated,anon;
+alter table public.admins enable row level security;
+alter table public.films enable row level security;
+alter table public.favorites enable row level security;
+alter table public.comments enable row level security;
+create policy "admin self read" on public.admins for select to authenticated using (user_id=(select auth.uid()));
+create policy "published or admin read films" on public.films for select to anon,authenticated using (published or (select public.is_admin()));
+create policy "admin insert films" on public.films for insert to authenticated with check ((select public.is_admin()));
+create policy "admin update films" on public.films for update to authenticated using ((select public.is_admin())) with check ((select public.is_admin()));
+create policy "admin delete films" on public.films for delete to authenticated using ((select public.is_admin()));
+create policy "own favorites read" on public.favorites for select to authenticated using (user_id=(select auth.uid()));
+create policy "own favorites insert" on public.favorites for insert to authenticated with check (user_id=(select auth.uid()) and exists(select 1 from public.films f where f.id=film_id and f.published));
+create policy "own favorites delete" on public.favorites for delete to authenticated using (user_id=(select auth.uid()));
+create policy "read published comments" on public.comments for select to anon,authenticated using (exists(select 1 from public.films f where f.id=film_id and f.published) or (select public.is_admin()));
+create policy "add own comments" on public.comments for insert to authenticated with check (user_id=(select auth.uid()) and exists(select 1 from public.films f where f.id=film_id and f.published));
+create policy "delete own comments or admin" on public.comments for delete to authenticated using (user_id=(select auth.uid()) or (select public.is_admin()));
+insert into storage.buckets(id,name,public) values ('posters','posters',true),('videos','videos',false) on conflict(id) do nothing;
+create policy "public posters" on storage.objects for select to anon,authenticated using(bucket_id='posters');
+create policy "admin upload posters" on storage.objects for insert to authenticated with check(bucket_id='posters' and (select public.is_admin()));
+create policy "admin delete posters" on storage.objects for delete to authenticated using(bucket_id='posters' and (select public.is_admin()));
+create policy "admin upload videos" on storage.objects for insert to authenticated with check(bucket_id='videos' and (select public.is_admin()));
+create policy "admin delete videos" on storage.objects for delete to authenticated using(bucket_id='videos' and (select public.is_admin()));
+-- Video bucket is private; allow signed URL generation for published films and admins.
+create policy "read published video objects" on storage.objects for select to anon,authenticated using(bucket_id='videos' and (exists(select 1 from public.films f where f.video_url=name and f.published) or (select public.is_admin())));
